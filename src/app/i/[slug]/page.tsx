@@ -236,14 +236,14 @@ export default function ImagePage() {
     if (!imageUrl || downloading || !fileInfo) return;
     
     setDownloading(true);
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+    
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
-      
-      // Method 1: Try to download from the displayed image element (no re-fetch needed)
+      // Method 1: Try to download from the already-loaded image element (no re-fetch needed)
       const imgElement = imgRef.current;
       
       if (imgElement && imgElement.complete && imgElement.naturalWidth > 0) {
-        // Image is already loaded, convert to blob from canvas
+        // Image is already loaded and displayed, convert to blob from canvas
         try {
           const canvas = document.createElement('canvas');
           canvas.width = imgElement.naturalWidth;
@@ -252,12 +252,14 @@ export default function ImagePage() {
           
           if (ctx) {
             ctx.drawImage(imgElement, 0, 0);
+            
+            // Convert canvas to blob
             canvas.toBlob((blob) => {
               if (blob) {
                 const downloadUrl = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = downloadUrl;
-                a.download = fileInfo?.originalName || 'image';
+                a.download = fileInfo.originalName || 'image';
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
@@ -276,11 +278,7 @@ export default function ImagePage() {
                 return;
               } else {
                 // Canvas toBlob failed, fall through to fetch method
-                if (imageUrl) {
-                  downloadFromUrl();
-                } else {
-                  setDownloading(false);
-                }
+                downloadFromUrl();
               }
             }, fileInfo?.mimeType || 'image/png');
             return; // Exit early if canvas method is being used
@@ -291,7 +289,7 @@ export default function ImagePage() {
         }
       }
       
-      // Method 2: Download directly from URL (browser will use cache if image is already loaded)
+      // Method 2: Fallback - Download directly from URL (only if canvas method failed)
       if (!imageUrl) {
         toast.error('Image URL not available');
         setDownloading(false);
@@ -302,11 +300,9 @@ export default function ImagePage() {
       
       async function downloadFromUrl() {
         try {
-          // Use the same URL - browser will use cached version if available
           const response = await fetch(imageUrl!, {
             method: 'GET',
             credentials: 'include',
-            cache: 'default', // Browser will use cache if available
           });
           
           if (!response.ok) {
