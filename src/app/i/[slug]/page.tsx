@@ -106,6 +106,7 @@ export default function ImagePage() {
   const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const analyticsRef = useRef(false);
+  const imgRef = useRef<HTMLImageElement | null>(null);
 
   const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
 
@@ -235,48 +236,117 @@ export default function ImagePage() {
     if (!imageUrl || downloading || !fileInfo) return;
     
     setDownloading(true);
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+    
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+      // Method 1: Try to download from the already-loaded image element (no re-fetch needed)
+      const imgElement = imgRef.current;
       
-      // Step 1: Fetch image data (no download count increment)
-      // Use the imageUrl directly (it's already set to the data endpoint)
-      const response = await fetch(imageUrl, {
-        method: 'GET',
-        credentials: 'include',
-      });
+      if (imgElement && imgElement.complete && imgElement.naturalWidth > 0) {
+        // Image is already loaded and displayed, convert to blob from canvas
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = imgElement.naturalWidth;
+          canvas.height = imgElement.naturalHeight;
+          const ctx = canvas.getContext('2d');
+          
+          if (ctx) {
+            ctx.drawImage(imgElement, 0, 0);
+            
+            // Convert canvas to blob
+            canvas.toBlob((blob) => {
+              if (blob && fileInfo) {
+                const downloadUrl = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = downloadUrl;
+                a.download = fileInfo.originalName || 'image';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(downloadUrl);
+                
+                // Increment download count on backend (fire and forget)
+                fetch(`${apiUrl}/api/file/${slug}/increment-download`, {
+                  method: 'POST',
+                  credentials: 'include',
+                }).catch(err => {
+                  console.error('Error incrementing download count:', err);
+                });
+                
+                toast.success('Download started!');
+                setDownloading(false);
+                return;
+              } else {
+                // Canvas toBlob failed, fall through to fetch method
+                if (imageUrl) {
+                  downloadFromUrl();
+                } else {
+                  toast.error('Image not available');
+                  setDownloading(false);
+                }
+              }
+            }, fileInfo?.mimeType || 'image/png');
+            return; // Exit early if canvas method is being used
+          }
+        } catch (canvasError) {
+          console.log('Canvas method failed (likely CORS), falling back to fetch:', canvasError);
+          // Fall through to fetch method
+        }
+      }
       
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Download fetch error:', response.status, errorText);
-        toast.error(`Failed to download image: ${response.status === 401 ? 'Invalid password' : 'Server error'}`);
+      // Method 2: Fallback - Download directly from URL (only if canvas method failed)
+      if (!imageUrl) {
+        toast.error('Image URL not available');
+        setDownloading(false);
         return;
       }
       
-      // Step 2: Create blob and download (frontend-rendered)
-      const blob = await response.blob();
-      const downloadUrl = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = downloadUrl;
-      a.download = fileInfo.originalName || 'image';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(downloadUrl);
+      downloadFromUrl();
       
-      // Step 3: Increment download count on backend (fire and forget)
-      fetch(`${apiUrl}/api/file/${slug}/increment-download`, {
-        method: 'POST',
-        credentials: 'include',
-      }).catch(err => {
-        console.error('Error incrementing download count:', err);
-        // Don't fail the download if count increment fails
-      });
-      
-      toast.success('Download started!');
+      async function downloadFromUrl() {
+        try {
+          const response = await fetch(imageUrl!, {
+            method: 'GET',
+            credentials: 'include',
+          });
+          
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Download fetch error:', response.status, errorText);
+            toast.error(`Failed to download image: ${response.status === 401 ? 'Invalid password' : 'Server error'}`);
+            return;
+          }
+          
+          // Create blob and download
+          const blob = await response.blob();
+          const downloadUrl = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = downloadUrl;
+          a.download = fileInfo?.originalName || 'image';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(downloadUrl);
+          
+          // Increment download count on backend (fire and forget)
+          fetch(`${apiUrl}/api/file/${slug}/increment-download`, {
+            method: 'POST',
+            credentials: 'include',
+          }).catch(err => {
+            console.error('Error incrementing download count:', err);
+          });
+          
+          toast.success('Download started!');
+        } catch (error: any) {
+          console.error('Download error:', error);
+          toast.error(error.message || 'Failed to download image');
+        } finally {
+          setDownloading(false);
+        }
+      }
     } catch (error: any) {
       console.error('Download error:', error);
       toast.error(error.message || 'Failed to download image');
-    } finally {
       setDownloading(false);
     }
   };
@@ -296,12 +366,6 @@ export default function ImagePage() {
           <div className="text-6xl mb-4">😢</div>
           <h1 className="text-2xl font-bold text-white mb-2">{error}</h1>
           <p className="text-gray-400 mb-6">This image may have been deleted or expired.</p>
-          <Link
-            href="/upload"
-            className="inline-block px-6 py-3 bg-white text-gray-900 font-medium rounded-lg hover:bg-gray-100 transition-colors"
-          >
-            Upload a new file
-          </Link>
         </div>
       </div>
     );
@@ -347,10 +411,12 @@ export default function ImagePage() {
       <div className="flex-1 flex items-center justify-center p-4 pb-24">
         {imageUrl && (
           <img
+            ref={imgRef}
             src={imageUrl}
             alt={fileInfo?.originalName || 'Image'}
             className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
             onError={() => setError('Failed to load image')}
+            crossOrigin="anonymous"
           />
         )}
       </div>
