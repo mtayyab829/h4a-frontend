@@ -232,28 +232,91 @@ export default function ImagePage() {
   };
 
   const downloadImage = async () => {
-    if (!imageUrl || downloading || !fileInfo) return;
+    if (downloading) return;
+    
+    if (!fileInfo) {
+      toast.error('File information not available');
+      return;
+    }
+    
+    // Check if password is required but not provided
+    if (fileInfo.hasPassword && !password && needsPassword) {
+      toast.error('Please enter the password first');
+      return;
+    }
     
     setDownloading(true);
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
       
+      // Use imageUrl if available (already has password if needed), otherwise build from scratch
+      let dataUrl = imageUrl;
+      if (!dataUrl) {
+        // Build the data URL - always build from scratch to ensure it's correct
+        dataUrl = `${apiUrl}/api/file/${slug}/data`;
+        if (fileInfo.hasPassword && password) {
+          dataUrl += `?password=${encodeURIComponent(password)}`;
+        }
+      }
+      
+      console.log('Downloading from:', dataUrl);
+      console.log('File info:', { slug, hasPassword: fileInfo.hasPassword, password: password ? '***' : 'none' });
+      console.log('API URL:', apiUrl);
+      
       // Step 1: Fetch image data (no download count increment)
-      // Use the imageUrl directly (it's already set to the data endpoint)
-      const response = await fetch(imageUrl, {
-        method: 'GET',
-        credentials: 'include',
-      });
+      let response: Response;
+      try {
+        response = await fetch(dataUrl, {
+          method: 'GET',
+          credentials: 'include',
+          headers: {
+            'Accept': fileInfo.mimeType || 'image/*',
+          },
+        });
+      } catch (fetchError: any) {
+        console.error('Fetch error:', fetchError);
+        // If fetch fails, it might be a CORS or network issue
+        if (fetchError.name === 'TypeError' && fetchError.message.includes('Failed to fetch')) {
+          toast.error('Network error: Unable to connect to server. Please check your connection and try again.');
+        } else {
+          toast.error(`Download failed: ${fetchError.message || 'Unknown error'}`);
+        }
+        setDownloading(false);
+        return;
+      }
+      
+      console.log('Download response status:', response.status, response.statusText);
+      
+      if (response.status === 401) {
+        toast.error('Invalid password. Please enter the correct password.');
+        setDownloading(false);
+        return;
+      }
       
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Download fetch error:', response.status, errorText);
-        toast.error(`Failed to download image: ${response.status === 401 ? 'Invalid password' : 'Server error'}`);
+        let errorMessage = 'Failed to download image';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorMessage;
+        } catch {
+          errorMessage = `Server error: ${response.status} ${response.statusText}`;
+        }
+        console.error('Download fetch error:', response.status, errorMessage);
+        toast.error(errorMessage);
+        setDownloading(false);
         return;
       }
       
       // Step 2: Create blob and download (frontend-rendered)
       const blob = await response.blob();
+      console.log('Blob created:', blob.size, 'bytes, type:', blob.type);
+      
+      if (!blob || blob.size === 0) {
+        toast.error('Downloaded file is empty');
+        setDownloading(false);
+        return;
+      }
+      
       const downloadUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = downloadUrl;
@@ -261,7 +324,11 @@ export default function ImagePage() {
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      window.URL.revokeObjectURL(downloadUrl);
+      
+      // Clean up after a short delay to ensure download starts
+      setTimeout(() => {
+        window.URL.revokeObjectURL(downloadUrl);
+      }, 100);
       
       // Step 3: Increment download count on backend (fire and forget)
       fetch(`${apiUrl}/api/file/${slug}/increment-download`, {
@@ -275,7 +342,13 @@ export default function ImagePage() {
       toast.success('Download started!');
     } catch (error: any) {
       console.error('Download error:', error);
-      toast.error(error.message || 'Failed to download image');
+      console.error('Error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack,
+      });
+      const errorMessage = error.message || 'Failed to download image. Please check your connection and try again.';
+      toast.error(errorMessage);
     } finally {
       setDownloading(false);
     }
