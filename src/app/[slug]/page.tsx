@@ -18,16 +18,16 @@ export async function generateMetadata({ params }: SlugPageProps): Promise<Metad
     
     if (!response.ok) {
       return {
-        title: 'Link not found | H4a',
+        title: 'Link not found | Harmony4all',
       };
     }
     
     return {
-      title: 'Redirecting... | H4a',
+      title: 'Redirecting... | Harmony4all',
     };
   } catch (error) {
     return {
-      title: 'Error | H4a',
+      title: 'Error | Harmony4all',
     };
   }
 }
