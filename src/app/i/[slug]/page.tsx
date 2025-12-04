@@ -383,7 +383,7 @@ export default function ImagePage() {
             <button
               onClick={downloadImage}
               disabled={downloading}
-              className="flex items-center gap-2 px-4 py-2.5 bg-white text-gray-900 rounded-full hover:bg-gray-100 disabled:opacity-70 disabled:cursor-not-allowed transition-colors font-medium"
+              className="flex items-center hidden gap-2 px-4 py-2.5 bg-white text-gray-900 rounded-full hover:bg-gray-100 disabled:opacity-70 disabled:cursor-not-allowed transition-colors font-medium"
             >
               {downloading ? (
                 <>
