@@ -117,6 +117,13 @@ export default function ImagePage() {
     }
   }, [fileInfo, needsPassword]);
 
+  // Debug: Log when imageUrl changes
+  useEffect(() => {
+    if (imageUrl) {
+      console.log('Image URL set to:', imageUrl);
+    }
+  }, [imageUrl]);
+
   const sendAnalytics = async () => {
     try {
       const ua = navigator.userAgent;
@@ -177,9 +184,9 @@ export default function ImagePage() {
       if (data.hasPassword) {
         setNeedsPassword(true);
       } else {
-        setImageUrl(`${apiUrl}/api/file/${slug}/data`);
-        console.log("imageUrl",imageUrl);
-
+        const newImageUrl = `${apiUrl}/api/file/${slug}/data`;
+        setImageUrl(newImageUrl);
+        console.log("Setting imageUrl to:", newImageUrl);
       }
     } catch (err) {
       setError('Failed to load file');
