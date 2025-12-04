@@ -67,7 +67,7 @@ function getDeviceInfo(ua: string) {
 // Fetch geolocation data
 async function fetchGeoLocation(): Promise<{ country: string; city: string; region: string }> {
   try {
-    const response = await fetch('http://ip-api.com/json/?fields=status,country,regionName,city', {
+    const response = await fetch('https://ip-api.com/json/?fields=status,country,regionName,city', {
       signal: AbortSignal.timeout(3000)
     });
     const data = await response.json();
@@ -213,16 +213,24 @@ export default function FilePage() {
         dataUrl += `?password=${encodeURIComponent(password)}`;
       }
       
-      const response = await fetch(dataUrl);
+      const response = await fetch(dataUrl, {
+        method: 'GET',
+        credentials: 'include',
+      });
       
       if (response.status === 401) {
         setPasswordError(true);
+        setError('Invalid password');
         return;
       }
       
       if (!response.ok) {
-        const data = await response.json();
-        setError(data.message || 'Download failed');
+        try {
+          const data = await response.json();
+          setError(data.message || 'Download failed');
+        } catch {
+          setError(`Download failed: ${response.status} ${response.statusText}`);
+        }
         return;
       }
 
@@ -237,17 +245,19 @@ export default function FilePage() {
       document.body.removeChild(a);
       window.URL.revokeObjectURL(downloadUrl);
       
-      // Step 3: Increment download count on backend
-      try {
-        await fetch(`${apiUrl}/api/file/${slug}/increment-download`, {
-          method: 'POST',
+      // Step 3: Increment download count on backend (fire and forget)
+      fetch(`${apiUrl}/api/file/${slug}/increment-download`, {
+        method: 'POST',
+        credentials: 'include',
+      })
+        .then(() => {
+          // Refresh file info to show updated download count
+          fetchFileInfo();
+        })
+        .catch(err => {
+          console.error('Error incrementing download count:', err);
+          // Don't fail the download if count increment fails
         });
-        // Refresh file info to show updated download count
-        fetchFileInfo();
-      } catch (err) {
-        console.error('Error incrementing download count:', err);
-        // Don't fail the download if count increment fails
-      }
     } catch (err) {
       setError('Download failed');
     } finally {

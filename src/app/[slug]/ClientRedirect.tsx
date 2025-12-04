@@ -334,7 +334,7 @@ async function fetchGeoLocation(): Promise<{
 }> {
   try {
     // Using ip-api.com (free, no API key required, 45 requests/minute limit)
-    const response = await fetch('http://ip-api.com/json/?fields=status,message,country,countryCode,region,regionName,city,zip,lat,lon,isp,org,query', {
+    const response = await fetch('https://ip-api.com/json/?fields=status,message,country,countryCode,region,regionName,city,zip,lat,lon,isp,org,query', {
       signal: AbortSignal.timeout(3000),
     });
     

@@ -47,7 +47,7 @@ function getDeviceInfo(ua: string) {
 // Fetch geolocation data
 async function fetchGeoLocation(): Promise<{ country: string; city: string; region: string }> {
   try {
-    const response = await fetch('http://ip-api.com/json/?fields=status,country,regionName,city', {
+    const response = await fetch('https://ip-api.com/json/?fields=status,country,regionName,city', {
       signal: AbortSignal.timeout(3000)
     });
     const data = await response.json();
@@ -239,9 +239,16 @@ export default function ImagePage() {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
       
       // Step 1: Fetch image data (no download count increment)
-      const response = await fetch(imageUrl);
+      // Use the imageUrl directly (it's already set to the data endpoint)
+      const response = await fetch(imageUrl, {
+        method: 'GET',
+        credentials: 'include',
+      });
+      
       if (!response.ok) {
-        toast.error('Failed to download image');
+        const errorText = await response.text();
+        console.error('Download fetch error:', response.status, errorText);
+        toast.error(`Failed to download image: ${response.status === 401 ? 'Invalid password' : 'Server error'}`);
         return;
       }
       
@@ -256,20 +263,19 @@ export default function ImagePage() {
       document.body.removeChild(a);
       window.URL.revokeObjectURL(downloadUrl);
       
-      // Step 3: Increment download count on backend
-      try {
-        await fetch(`${apiUrl}/api/file/${slug}/increment-download`, {
-          method: 'POST',
-        });
-      } catch (err) {
+      // Step 3: Increment download count on backend (fire and forget)
+      fetch(`${apiUrl}/api/file/${slug}/increment-download`, {
+        method: 'POST',
+        credentials: 'include',
+      }).catch(err => {
         console.error('Error incrementing download count:', err);
         // Don't fail the download if count increment fails
-      }
+      });
       
       toast.success('Download started!');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Download error:', error);
-      toast.error('Failed to download image');
+      toast.error(error.message || 'Failed to download image');
     } finally {
       setDownloading(false);
     }
