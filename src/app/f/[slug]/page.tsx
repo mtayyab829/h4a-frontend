@@ -206,12 +206,14 @@ export default function FilePage() {
     
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
-      let url = `${apiUrl}/api/file/${slug}/download`;
+      
+      // Step 1: Fetch file data (no download count increment)
+      let dataUrl = `${apiUrl}/api/file/${slug}/data`;
       if (password) {
-        url += `?password=${encodeURIComponent(password)}`;
+        dataUrl += `?password=${encodeURIComponent(password)}`;
       }
       
-      const response = await fetch(url);
+      const response = await fetch(dataUrl);
       
       if (response.status === 401) {
         setPasswordError(true);
@@ -224,7 +226,7 @@ export default function FilePage() {
         return;
       }
 
-      // Create blob and download
+      // Step 2: Create blob and download (frontend-rendered)
       const blob = await response.blob();
       const downloadUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -235,8 +237,17 @@ export default function FilePage() {
       document.body.removeChild(a);
       window.URL.revokeObjectURL(downloadUrl);
       
-      // Refresh file info to update download count
-      fetchFileInfo();
+      // Step 3: Increment download count on backend
+      try {
+        await fetch(`${apiUrl}/api/file/${slug}/increment-download`, {
+          method: 'POST',
+        });
+        // Refresh file info to show updated download count
+        fetchFileInfo();
+      } catch (err) {
+        console.error('Error incrementing download count:', err);
+        // Don't fail the download if count increment fails
+      }
     } catch (err) {
       setError('Download failed');
     } finally {

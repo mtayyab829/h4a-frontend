@@ -175,7 +175,7 @@ export default function ImagePage() {
       if (data.hasPassword) {
         setNeedsPassword(true);
       } else {
-        setImageUrl(`${apiUrl}/api/file/${slug}/download`);
+        setImageUrl(`${apiUrl}/api/file/${slug}/data`);
       }
     } catch (err) {
       setError('Failed to load file');
@@ -187,7 +187,7 @@ export default function ImagePage() {
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
-    setImageUrl(`${apiUrl}/api/file/${slug}/download?password=${encodeURIComponent(password)}`);
+    setImageUrl(`${apiUrl}/api/file/${slug}/data?password=${encodeURIComponent(password)}`);
     setNeedsPassword(false);
   };
 
@@ -232,25 +232,40 @@ export default function ImagePage() {
   };
 
   const downloadImage = async () => {
-    if (!imageUrl || downloading) return;
+    if (!imageUrl || downloading || !fileInfo) return;
     
     setDownloading(true);
     try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+      
+      // Step 1: Fetch image data (no download count increment)
       const response = await fetch(imageUrl);
       if (!response.ok) {
         toast.error('Failed to download image');
         return;
       }
       
+      // Step 2: Create blob and download (frontend-rendered)
       const blob = await response.blob();
       const downloadUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = downloadUrl;
-      a.download = fileInfo?.originalName || 'image';
+      a.download = fileInfo.originalName || 'image';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       window.URL.revokeObjectURL(downloadUrl);
+      
+      // Step 3: Increment download count on backend
+      try {
+        await fetch(`${apiUrl}/api/file/${slug}/increment-download`, {
+          method: 'POST',
+        });
+      } catch (err) {
+        console.error('Error incrementing download count:', err);
+        // Don't fail the download if count increment fails
+      }
+      
       toast.success('Download started!');
     } catch (error) {
       console.error('Download error:', error);
