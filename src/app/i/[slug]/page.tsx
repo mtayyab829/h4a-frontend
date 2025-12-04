@@ -106,6 +106,7 @@ export default function ImagePage() {
   const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const analyticsRef = useRef(false);
+  const imgRef = useRef<HTMLImageElement | null>(null);
 
   const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
 
@@ -263,83 +264,147 @@ export default function ImagePage() {
       console.log('File info:', { slug, hasPassword: fileInfo.hasPassword, password: password ? '***' : 'none' });
       console.log('API URL:', apiUrl);
       
-      // Step 1: Fetch image data (no download count increment)
-      let response: Response;
-      try {
-        response = await fetch(dataUrl, {
-          method: 'GET',
-          credentials: 'include',
-          headers: {
-            'Accept': fileInfo.mimeType || 'image/*',
-          },
-        });
-      } catch (fetchError: any) {
-        console.error('Fetch error:', fetchError);
-        // If fetch fails, it might be a CORS or network issue
-        if (fetchError.name === 'TypeError' && fetchError.message.includes('Failed to fetch')) {
-          toast.error('Network error: Unable to connect to server. Please check your connection and try again.');
-        } else {
-          toast.error(`Download failed: ${fetchError.message || 'Unknown error'}`);
-        }
-        setDownloading(false);
-        return;
-      }
-      
-      console.log('Download response status:', response.status, response.statusText);
-      
-      if (response.status === 401) {
-        toast.error('Invalid password. Please enter the correct password.');
-        setDownloading(false);
-        return;
-      }
-      
-      if (!response.ok) {
-        let errorMessage = 'Failed to download image';
+      // Step 1: Try to use canvas method first (if image is already loaded and CORS allows)
+      const imgElement = imgRef.current;
+      if (imgElement && imgElement.complete && imgElement.naturalWidth > 0) {
         try {
-          const errorData = await response.json();
-          errorMessage = errorData.message || errorMessage;
-        } catch {
-          errorMessage = `Server error: ${response.status} ${response.statusText}`;
+          console.log('Trying canvas method for download');
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            canvas.width = imgElement.naturalWidth;
+            canvas.height = imgElement.naturalHeight;
+            ctx.drawImage(imgElement, 0, 0);
+            
+            canvas.toBlob((blob) => {
+              if (blob) {
+                const downloadUrl = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = downloadUrl;
+                a.download = fileInfo.originalName || 'image';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(downloadUrl);
+                
+                // Increment download count
+                fetch(`${apiUrl}/api/file/${slug}/increment-download`, {
+                  method: 'POST',
+                  credentials: 'include',
+                }).catch(() => {});
+                
+                toast.success('Download started!');
+                setDownloading(false);
+              } else {
+                // Canvas failed, fall back to fetch
+                downloadViaFetch();
+              }
+            }, fileInfo.mimeType || 'image/png');
+            return;
+          }
+        } catch (canvasError) {
+          console.log('Canvas method failed, falling back to fetch:', canvasError);
         }
-        console.error('Download fetch error:', response.status, errorMessage);
-        toast.error(errorMessage);
+      }
+      
+      // Step 2: Fallback to fetch method
+      if (!dataUrl) {
+        toast.error('Download URL not available');
         setDownloading(false);
         return;
       }
       
-      // Step 2: Create blob and download (frontend-rendered)
+      downloadViaFetch();
+      
+      async function downloadViaFetch() {
+        if (!fileInfo) {
+          toast.error('File information not available');
+          setDownloading(false);
+          return;
+        }
+        
+        let response: Response;
+        try {
+          response = await fetch(dataUrl!, {
+            method: 'GET',
+            mode: 'cors',
+            credentials: 'include',
+            cache: 'no-cache',
+            headers: {
+              'Accept': fileInfo.mimeType || 'image/*',
+            },
+          });
+        } catch (fetchError: any) {
+          console.error('Fetch error:', fetchError);
+          console.error('Error type:', fetchError.name);
+          console.error('Error message:', fetchError.message);
+          
+          if (fetchError.name === 'TypeError' && fetchError.message.includes('Failed to fetch')) {
+            toast.error('Network error: Unable to download. Please try right-clicking the image and "Save As".');
+          } else {
+            toast.error(`Download failed: ${fetchError.message || 'Unknown error'}`);
+          }
+          setDownloading(false);
+          return;
+        }
+        
+        console.log('Download response status:', response.status, response.statusText);
+        
+        if (response.status === 401) {
+          toast.error('Invalid password. Please enter the correct password.');
+          setDownloading(false);
+          return;
+        }
+        
+        if (!response.ok) {
+          let errorMessage = 'Failed to download image';
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.message || errorMessage;
+          } catch {
+            errorMessage = `Server error: ${response.status} ${response.statusText}`;
+          }
+          console.error('Download fetch error:', response.status, errorMessage);
+          toast.error(errorMessage);
+          setDownloading(false);
+          return;
+        }
+        
+        // Step 2: Create blob and download (frontend-rendered)
       const blob = await response.blob();
-      console.log('Blob created:', blob.size, 'bytes, type:', blob.type);
-      
-      if (!blob || blob.size === 0) {
-        toast.error('Downloaded file is empty');
-        setDownloading(false);
-        return;
-      }
-      
+        console.log('Blob created:', blob.size, 'bytes, type:', blob.type);
+        
+        if (!blob || blob.size === 0) {
+          toast.error('Downloaded file is empty');
+          setDownloading(false);
+          return;
+        }
+        
       const downloadUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = downloadUrl;
-      a.download = fileInfo.originalName || 'image';
+        a.download = fileInfo.originalName || 'image';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      
-      // Clean up after a short delay to ensure download starts
-      setTimeout(() => {
-        window.URL.revokeObjectURL(downloadUrl);
-      }, 100);
-      
-      // Step 3: Increment download count on backend (fire and forget)
-      fetch(`${apiUrl}/api/file/${slug}/increment-download`, {
-        method: 'POST',
-        credentials: 'include',
-      }).catch(err => {
-        console.error('Error incrementing download count:', err);
-        // Don't fail the download if count increment fails
-      });
-      
+        
+        // Clean up after a short delay to ensure download starts
+        setTimeout(() => {
+      window.URL.revokeObjectURL(downloadUrl);
+        }, 100);
+        
+        // Step 3: Increment download count on backend (fire and forget)
+        fetch(`${apiUrl}/api/file/${slug}/increment-download`, {
+          method: 'POST',
+          credentials: 'include',
+        }).catch(err => {
+          console.error('Error incrementing download count:', err);
+          // Don't fail the download if count increment fails
+        });
+        
       toast.success('Download started!');
+        setDownloading(false);
+      }
     } catch (error: any) {
       console.error('Download error:', error);
       console.error('Error details:', {
@@ -414,10 +479,12 @@ export default function ImagePage() {
       <div className="flex-1 flex items-center justify-center p-4 pb-24">
         {imageUrl && (
           <img
+            ref={imgRef}
             src={imageUrl}
             alt={fileInfo?.originalName || 'Image'}
             className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
             onError={() => setError('Failed to load image')}
+            crossOrigin="anonymous"
           />
         )}
       </div>
