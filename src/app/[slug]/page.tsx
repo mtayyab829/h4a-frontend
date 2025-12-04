@@ -18,16 +18,16 @@ export async function generateMetadata({ params }: SlugPageProps): Promise<Metad
     
     if (!response.ok) {
       return {
-        title: 'Link not found | LinkShortener',
+        title: 'Link not found | H4a',
       };
     }
     
     return {
-      title: 'Redirecting... | LinkShortener',
+      title: 'Redirecting... | H4a',
     };
   } catch (error) {
     return {
-      title: 'Error | LinkShortener',
+      title: 'Error | H4a',
     };
   }
 }

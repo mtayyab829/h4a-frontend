@@ -56,9 +56,9 @@ export default function CreatePage() {
       const slugFromUrl = data.shortUrl.split('/').pop();
       setCurrentSlug(slugFromUrl || '');
       setShowQR(true);
-      toast.success('URL shortened successfully!');
+      toast.success('Link created successfully!');
     } catch (error: any) {
-      toast.error(error.message || 'Failed to shorten URL');
+      toast.error(error.message || 'Failed to create link');
     } finally {
       setIsLoading(false);
     }
@@ -134,7 +134,7 @@ export default function CreatePage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
           >
-            Create Short Link
+            H4a
           </motion.h1>
           <motion.p 
             className="text-xl text-gray-600 max-w-3xl mx-auto"
@@ -142,7 +142,7 @@ export default function CreatePage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.1 }}
           >
-            Paste your long URL and get a short, shareable link instantly.
+            Create your short link
           </motion.p>
         </div>
 
@@ -212,10 +212,10 @@ export default function CreatePage() {
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
-                    Shortening...
+                    Creating...
                   </span>
                 ) : (
-                  'Shorten URL'
+                  'Create Link'
                 )}
               </button>
             </div>
@@ -228,7 +228,7 @@ export default function CreatePage() {
               animate={{ opacity: 1, height: 'auto' }}
               transition={{ duration: 0.3 }}
             >
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Your shortened URL</h3>
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Your link</h3>
               <div className="flex items-center justify-between bg-white rounded-md border border-gray-300 p-3 mb-4">
                 <a href={shortUrl} target="_blank" rel="noopener noreferrer" className="text-black truncate max-w-[calc(100%-4rem)] hover:underline">
                   {shortUrl}
