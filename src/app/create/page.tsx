@@ -134,7 +134,7 @@ export default function CreatePage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
           >
-            Harmony4all
+            Intigrational Musical Experience by Harmony4All
           </motion.h1>
           <motion.p 
             className="text-xl text-gray-600 max-w-3xl mx-auto"
