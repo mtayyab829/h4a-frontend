@@ -46,6 +46,8 @@ interface AnalyticsData {
     utmMediums: Record<string, number>;
     utmCampaigns: Record<string, number>;
     deviceTypes: { mobile: number; tablet: number; desktop: number };
+    platforms?: Record<string, number>;
+    inAppBrowsers?: Record<string, number>;
   };
 }
 

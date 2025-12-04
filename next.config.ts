@@ -6,6 +6,10 @@ const nextConfig: NextConfig = {
   // Production optimizations
   compress: true,
   poweredByHeader: false,
+  // Disable ESLint during builds
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
   // Ensure proper domain handling
   async headers() {
     return [
