@@ -2,13 +2,13 @@ import { Metadata } from 'next';
 import ClientRedirect from './ClientRedirect';
 
 interface SlugPageProps {
-  params: {
+  params: Promise<{
     slug: string;
-  };
+  }>;
 }
 
 export async function generateMetadata({ params }: SlugPageProps): Promise<Metadata> {
-  const resolvedParams = await Promise.resolve(params);
+  const resolvedParams = await params;
   const { slug } = resolvedParams;
   
   try {
@@ -33,7 +33,7 @@ export async function generateMetadata({ params }: SlugPageProps): Promise<Metad
 }
 
 export default async function SlugPage({ params }: SlugPageProps) {
-  const resolvedParams = await Promise.resolve(params);
+  const resolvedParams = await params;
   const { slug } = resolvedParams;
   
   try {
