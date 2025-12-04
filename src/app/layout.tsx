@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Harmony4all",
-  description: "Harmony4all - Making music accessible",
+  title: "Intigrational Musical Experience by Harmony4All",
+  description: "Harmony4All - Intigrational Musical Experience",
   icons: {
     icon: [
       { url: '/favicon.ico', sizes: 'any' },
