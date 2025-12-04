@@ -203,11 +203,13 @@ export default function FilePage() {
     
     setDownloading(true);
     setPasswordError(false);
+    setError(null);
     
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
       
       // Step 1: Fetch file data (no download count increment)
+      // Use cache: 'default' so browser will use cached version if available
       let dataUrl = `${apiUrl}/api/file/${slug}/data`;
       if (password) {
         dataUrl += `?password=${encodeURIComponent(password)}`;
@@ -216,11 +218,13 @@ export default function FilePage() {
       const response = await fetch(dataUrl, {
         method: 'GET',
         credentials: 'include',
+        cache: 'default', // Browser will use cache if available (no re-fetch if cached)
       });
       
       if (response.status === 401) {
         setPasswordError(true);
         setError('Invalid password');
+        setDownloading(false);
         return;
       }
       
@@ -231,11 +235,21 @@ export default function FilePage() {
         } catch {
           setError(`Download failed: ${response.status} ${response.statusText}`);
         }
+        setDownloading(false);
         return;
       }
 
       // Step 2: Create blob and download (frontend-rendered)
+      // Browser will use cached response if available, so this should be fast
       const blob = await response.blob();
+      
+      // Verify blob is valid
+      if (!blob || blob.size === 0) {
+        setError('Downloaded file is empty');
+        setDownloading(false);
+        return;
+      }
+      
       const downloadUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = downloadUrl;
@@ -243,9 +257,14 @@ export default function FilePage() {
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      window.URL.revokeObjectURL(downloadUrl);
+      
+      // Clean up after a short delay to ensure download starts
+      setTimeout(() => {
+        window.URL.revokeObjectURL(downloadUrl);
+      }, 100);
       
       // Step 3: Increment download count on backend (fire and forget)
+      // Don't await - let it run in background
       fetch(`${apiUrl}/api/file/${slug}/increment-download`, {
         method: 'POST',
         credentials: 'include',
@@ -258,8 +277,9 @@ export default function FilePage() {
           console.error('Error incrementing download count:', err);
           // Don't fail the download if count increment fails
         });
-    } catch (err) {
-      setError('Download failed');
+    } catch (err: any) {
+      console.error('Download error:', err);
+      setError(err.message || 'Download failed. Please try again.');
     } finally {
       setDownloading(false);
     }
