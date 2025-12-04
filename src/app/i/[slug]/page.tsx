@@ -102,7 +102,6 @@ export default function ImagePage() {
   const [password, setPassword] = useState('');
   const [needsPassword, setNeedsPassword] = useState(false);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [showShareMenu, setShowShareMenu] = useState(false);
   const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const analyticsRef = useRef(false);
@@ -166,6 +165,8 @@ export default function ImagePage() {
       const response = await fetch(`${apiUrl}/api/file/${slug}`);
       const data = await response.json();
 
+      console.log("data",data);
+
       if (!response.ok) {
         setError(data.message || 'File not found');
         return;
@@ -177,6 +178,8 @@ export default function ImagePage() {
         setNeedsPassword(true);
       } else {
         setImageUrl(`${apiUrl}/api/file/${slug}/data`);
+        console.log("imageUrl",imageUrl);
+
       }
     } catch (err) {
       setError('Failed to load file');
